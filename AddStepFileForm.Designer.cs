@@ -20,7 +20,6 @@
             this._btnStart = new System.Windows.Forms.Button();
             this._btnStop = new System.Windows.Forms.Button();
             this._btnClose = new System.Windows.Forms.Button();
-            this._checkBoxIncludeSubitems = new System.Windows.Forms.CheckBox();
             this._listView = new System.Windows.Forms.ListView();
             this._colNumber = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this._colRevision = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
@@ -30,6 +29,8 @@
             this._colProcessStatus = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this._imageList = new System.Windows.Forms.ImageList(this.components);
             this._btnGoToFile = new System.Windows.Forms.Button();
+            this.ckIgnoreKPG = new System.Windows.Forms.CheckBox();
+            this.ckIgnoreDS = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             // 
             // _btnStart
@@ -66,19 +67,6 @@
             this._btnClose.UseVisualStyleBackColor = true;
             this._btnClose.Click += new System.EventHandler(this.Handle_BtnClose_Click);
             // 
-            // _checkBoxIncludeSubitems
-            // 
-            this._checkBoxIncludeSubitems.AutoSize = true;
-            this._checkBoxIncludeSubitems.Checked = true;
-            this._checkBoxIncludeSubitems.CheckState = System.Windows.Forms.CheckState.Checked;
-            this._checkBoxIncludeSubitems.Enabled = false;
-            this._checkBoxIncludeSubitems.Location = new System.Drawing.Point(13, 12);
-            this._checkBoxIncludeSubitems.Name = "_checkBoxIncludeSubitems";
-            this._checkBoxIncludeSubitems.Size = new System.Drawing.Size(107, 17);
-            this._checkBoxIncludeSubitems.TabIndex = 1;
-            this._checkBoxIncludeSubitems.Text = "Include Subitems";
-            this._checkBoxIncludeSubitems.UseVisualStyleBackColor = true;
-            // 
             // _listView
             // 
             this._listView.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
@@ -95,7 +83,7 @@
             this._listView.HideSelection = false;
             this._listView.Location = new System.Drawing.Point(13, 95);
             this._listView.Name = "_listView";
-            this._listView.Size = new System.Drawing.Size(770, 351);
+            this._listView.Size = new System.Drawing.Size(770, 272);
             this._listView.SmallImageList = this._imageList;
             this._listView.TabIndex = 2;
             this._listView.UseCompatibleStateImageBehavior = false;
@@ -119,7 +107,7 @@
             // 
             // _ColFilename
             // 
-            this._ColFilename.Text = "Part Filename";
+            this._ColFilename.Text = "Primary Filename";
             this._ColFilename.Width = 100;
             // 
             // _ColFileRevision
@@ -142,21 +130,44 @@
             // 
             this._btnGoToFile.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this._btnGoToFile.Enabled = false;
-            this._btnGoToFile.Location = new System.Drawing.Point(-88, 66);
+            this._btnGoToFile.Location = new System.Drawing.Point(13, 66);
             this._btnGoToFile.Name = "_btnGoToFile";
             this._btnGoToFile.Size = new System.Drawing.Size(75, 23);
             this._btnGoToFile.TabIndex = 3;
             this._btnGoToFile.Text = "Go To";
             this._btnGoToFile.UseVisualStyleBackColor = true;
+            this._btnGoToFile.Visible = false;
+            this._btnGoToFile.Click += new System.EventHandler(this.Handle_BtnGoToFile_Click);
+            // 
+            // ckIgnoreKPG
+            // 
+            this.ckIgnoreKPG.AutoSize = true;
+            this.ckIgnoreKPG.Location = new System.Drawing.Point(13, 12);
+            this.ckIgnoreKPG.Name = "ckIgnoreKPG";
+            this.ckIgnoreKPG.Size = new System.Drawing.Size(163, 17);
+            this.ckIgnoreKPG.TabIndex = 4;
+            this.ckIgnoreKPG.Text = "Ignore Kiestra Product Group";
+            this.ckIgnoreKPG.UseVisualStyleBackColor = true;
+            // 
+            // ckIgnoreDS
+            // 
+            this.ckIgnoreDS.AutoSize = true;
+            this.ckIgnoreDS.Location = new System.Drawing.Point(13, 35);
+            this.ckIgnoreDS.Name = "ckIgnoreDS";
+            this.ckIgnoreDS.Size = new System.Drawing.Size(153, 17);
+            this.ckIgnoreDS.TabIndex = 5;
+            this.ckIgnoreDS.Text = "Ignore Dependency States";
+            this.ckIgnoreDS.UseVisualStyleBackColor = true;
             // 
             // AddStepFileForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(795, 458);
+            this.ClientSize = new System.Drawing.Size(795, 379);
+            this.Controls.Add(this.ckIgnoreDS);
+            this.Controls.Add(this.ckIgnoreKPG);
             this.Controls.Add(this._btnGoToFile);
             this.Controls.Add(this._listView);
-            this.Controls.Add(this._checkBoxIncludeSubitems);
             this.Controls.Add(this._btnClose);
             this.Controls.Add(this._btnStop);
             this.Controls.Add(this._btnStart);
@@ -177,7 +188,6 @@
         private System.Windows.Forms.Button _btnStart;
         private System.Windows.Forms.Button _btnStop;
         private System.Windows.Forms.Button _btnClose;
-        private System.Windows.Forms.CheckBox _checkBoxIncludeSubitems;
         private System.Windows.Forms.ListView _listView;
         private System.Windows.Forms.ColumnHeader _colTitle;
         private System.Windows.Forms.ColumnHeader _colProcessStatus;
@@ -187,5 +197,7 @@
         private System.Windows.Forms.ColumnHeader _ColFilename;
         private System.Windows.Forms.ColumnHeader _ColFileRevision;
         private System.Windows.Forms.Button _btnGoToFile;
+        private System.Windows.Forms.CheckBox ckIgnoreKPG;
+        private System.Windows.Forms.CheckBox ckIgnoreDS;
     }
 }

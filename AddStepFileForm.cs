@@ -36,7 +36,8 @@ namespace AddStepFile
         public List<Item> Items { get; private set; }
         public FilePath SelectedFile { get; private set; }
 
-        private bool IncludeSubitems { get; set; }
+        private bool IgnoreKPG { get; set; }
+        private bool IgnoreDS { get; set; }
         private BackgroundWorker Worker { get; set; }
 
         private void Handle_Form_Load(object sender, EventArgs e)
@@ -63,6 +64,8 @@ namespace AddStepFile
                     newItem.SubItems.Add("-");
                     newItem.SubItems.Add("-");
                     newItem.SubItems.Add("-");
+
+                    //newItem.Tag = e.FilePath;
                     //newItem.ImageIndex = GetImageIndex(file.Name);
                     _listView.Items.Add(newItem);
                 }
@@ -123,14 +126,16 @@ namespace AddStepFile
                 _btnClose.InvokeIfRequired(() => _btnClose.Enabled = false);
                 _btnStop.InvokeIfRequired(() => _btnStop.Enabled = true);
                 //_listView.InvokeIfRequired(() => _listView.Items.Clear());
-                IncludeSubitems = _checkBoxIncludeSubitems.Checked;
+                IgnoreKPG = ckIgnoreKPG.Checked;
+                IgnoreDS = ckIgnoreDS.Checked;
                 // the method is run in separate thread so we create separate instance of WebServiceManager
                 using (WebServiceManager serviceMgr = new WebServiceManager(Credentials))
                 {
                     AddStepFileAction StepAction = new AddStepFileAction
                     {
                         ServiceManager = serviceMgr,
-                        IncludeSubitems = _checkBoxIncludeSubitems.Checked,
+                        IgnoreKPG = ckIgnoreKPG.Checked,
+                        IgnoreDS = ckIgnoreDS.Checked,
                     };
 
                     StepAction.ContinueProcessing += new EventHandler<CancelEventArgs>(Handle_StepAction_ContinueProcessing);
@@ -239,6 +244,5 @@ namespace AddStepFile
             }
             return path;
         }
-
     }
 }

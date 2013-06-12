@@ -66,7 +66,8 @@ namespace AddStepFile
         public event EventHandler<ItemStatusUpdateEventArgs> ItemStatusUpdate;
         public event EventHandler<ItemFileUpdateEventArgs> ItemFileUpdate;
 
-        public bool IncludeSubitems { get; set; }
+        public bool IgnoreKPG { get; set; }
+        public bool IgnoreDS { get; set; }
         public WebServiceManager ServiceManager { get; set; }
 
         /// <summary>
@@ -90,10 +91,53 @@ namespace AddStepFile
                 {
                     return;
                 }
-                Autodesk.Connectivity.WebServices.File iptfile = FindIptFile(item);
-                if (iptfile != null)
+                Item itemRev = ServiceManager.ItemService.GetLatestItemByItemNumber(item.ItemNum);
+                PropInst[] props;
+                props = ServiceManager.PropertyService.GetProperties("ITEM", new long[] { item.Id }, new long[] { 109 });
+                String KiestraProductGroup = "";
+                if (props[0].Val != null)
                 {
-                    ProcessItem(item, iptfile);
+                    KiestraProductGroup = props[0].Val.ToString();
+                }
+                if ((KiestraProductGroup == "1100") ||
+                    (KiestraProductGroup == "3000") ||
+                    (KiestraProductGroup == "4000") ||
+                    (KiestraProductGroup == "7000") ||
+                    IgnoreKPG)
+                {
+                    Autodesk.Connectivity.WebServices.File iptiamfile = FindIptIamFile(itemRev);
+                    if (iptiamfile != null)
+                    {
+                        bool AllFinal = true;
+                        if (IgnoreDS == false)
+                        {
+                            FilePathArray[] fparray = ServiceManager.DocumentService.GetLatestAssociatedFilePathsByMasterIds(new long[] { iptiamfile.MasterId }, FileAssociationTypeEnum.None, false, FileAssociationTypeEnum.Dependency, true, false, true, false);
+                            foreach (FilePath fp in fparray[0].FilePaths)
+                            {
+                                props = ServiceManager.PropertyService.GetProperties("FILE", new long[] { fp.File.Id }, new long[] { 44 });
+                                if (props[0].Val == null)
+                                {
+                                    AllFinal = false;
+                                }
+                                else
+                                {
+                                    AllFinal = AllFinal && (props[0].Val.ToString() == "Final");
+                                }
+                            }
+                        }
+                        if (AllFinal || IgnoreDS)
+                        {
+                            ProcessItem(itemRev, iptiamfile);
+                        }
+                        else
+                        {
+                            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Not all dependencies are Final"));
+                        }
+                    }
+                }
+                else
+                {
+                    OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Invalid Product Group"));
                 }
             }
         }
@@ -140,24 +184,20 @@ namespace AddStepFile
             }
         }
 
-        private Autodesk.Connectivity.WebServices.File FindIptFile(Item item)
+        private Autodesk.Connectivity.WebServices.File FindIptIamFile(Item item)
         {
             ItemFileAssoc[] associations = ServiceManager.ItemService.GetItemFileAssociationsByItemIds(new long[] { item.Id }, ItemFileLnkTypOpt.Primary);
-            String iptfilename = "";
-            long fileid = 0;
             string ext = "";
-            Autodesk.Connectivity.WebServices.File iptfile = null;
+            Autodesk.Connectivity.WebServices.File iptiamfile = null;
             //kunnen er meer primary associated files zijn?
             foreach (ItemFileAssoc association in associations)
             {
-                iptfilename = "C:/Vault WorkingFolder/AddStpFileTemp/" + association.FileName;
-                fileid = association.CldFileId;
-                ext = System.IO.Path.GetExtension(iptfilename);
-                if (ext == ".ipt") 
+                ext = System.IO.Path.GetExtension(association.FileName);
+                if ((ext == ".ipt") || (ext == ".iam")) 
                 {
-                    iptfile = ServiceManager.DocumentService.GetFileById(fileid);
-                    OnItemFileUpdate(new ItemFileUpdateEventArgs(item, iptfile.Name, iptfile.FileRev.Label));
-                    return iptfile;
+                    iptiamfile = ServiceManager.DocumentService.GetFileById(association.CldFileId);
+                    OnItemFileUpdate(new ItemFileUpdateEventArgs(item, iptiamfile.Name, iptiamfile.FileRev.Label));
+                    return iptiamfile;
                 }
             }
             OnItemFileUpdate(new ItemFileUpdateEventArgs(item, "Not found", "-"));
@@ -165,102 +205,138 @@ namespace AddStepFile
             return null;
         }
 
-        private void ProcessItem(Item item, Autodesk.Connectivity.WebServices.File iptfile)
+        private void ProcessItem(Item item, Autodesk.Connectivity.WebServices.File iptiamfile)
         {
-            //ServiceManager.PropertyService.getp
-
-            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Retreiving file.."));
-            // get file from vault
+            FilePath [] filepaths = ServiceManager.DocumentService.FindFilePathsByNameAndChecksum(iptiamfile.Name, iptiamfile.Cksum);
+            String iptiampath = filepaths[0].Path.Replace("$", "C:/Vault WorkingFolder");
             
-            ByteArray buffer;
-            String iptfilename = "C:/Vault WorkingFolder/AddStpFileTemp/" + iptfile.Name;
-                
-            ServiceManager.DocumentService.DownloadFile(iptfile.Id, true, out buffer);
-            System.IO.File.WriteAllBytes(iptfilename, buffer.Bytes);
+            String stepfilename = "C:/Vault WorkingFolder/Export Files/" + item.ItemNum + "-" + iptiamfile.FileRev.Label + ".stp";
             
-            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Opening file.."));
-            Inventor.ApprenticeServerComponent appserver;
-            appserver = new ApprenticeServerComponent();
-            Inventor.ApprenticeServerDocument appdocu;
-            appdocu = appserver.Open(iptfilename);
-
-            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Generating step.."));
-            //String stepfilename = System.IO.Path.ChangeExtension(iptfilename, ".stp");
-            //stepfilename = "C:/Vault WorkingFolder/Export Files/" + System.IO.Path.GetFileName(stepfilename);
-            String stepfilename = "C:/Vault WorkingFolder/Export Files/" + item.ItemNum + "-" + iptfile.FileRev.Label + ".stp";
-            
-            FileSaveAs sa;
-            sa = appserver.FileSaveAs;
-            sa.AddFileToSave(appdocu, stepfilename);
-            sa.ExecuteSaveCopyAs();
-
-            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Closing file.."));
-            appdocu.Close();
-            System.IO.File.Delete(iptfilename);
-
-            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Adding step-file to vault.."));
-            // add file to vault + attach
-
-            Folder[] folders = ServiceManager.DocumentService.FindFoldersByPaths(new string [] {"$/Export Files"});
-            long folderid = folders[0].Id;
-            System.IO.FileInfo info = new FileInfo(stepfilename);
-            buffer.Bytes = System.IO.File.ReadAllBytes(stepfilename);
-
-        //Autodesk.Connectivity.WebServices.File newfile = ServiceManager.DocumentService.AddFile(folderid, System.IO.Path.GetFileName(stepfilename), "Added by Martijns stepfileplugin", info.LastWriteTime, null, null, FileClassification.None, false, buffer);
-
-        //Attmt newattachment = new Attmt();
-        //newattachment.FileId = newfile.Id;
-        //newattachment.Pin = false;
-            
-            // Get the file associations for later we need
-            // to pass the existing file associations back to the item
-            // get all the available properties
-            //PropDef[] propdefs = ServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("ITEM");
-            //long[] ids = new long[propdefs.Length];
-            //long idsi = 0;
-
-            // store their ids in a list
-            //foreach (PropDef propdef in propdefs)
-            //    ids[idsi++] = propdef.Id;
-
-            // get all the properties for this item
-            //PropInst[] props = ServiceManager.PropertyService.GetProperties("ITEM", new long[] { item.Id }, ids);
-            ////PropInst[] oldprops = ServiceManager.ItemService.GetItemProperties(new long[] { item.Id }, ids);
-
-            //ItemFileAssoc[] assocs = ServiceManager.ItemService.GetItemFileAssociationsByItemIds(new long[] { item.Id }, ItemFileLnkTypOpt.Primary | ItemFileLnkTypOpt.Secondary | ItemFileLnkTypOpt.StandardComponent | ItemFileLnkTypOpt.PrimarySub | ItemFileLnkTypOpt.SecondarySub | ItemFileLnkTypOpt.Tertiary);
-            ItemFileAssoc[] assocs = ServiceManager.ItemService.GetItemFileAssociationsByItemIds(new long[] { item.Id }, ItemFileLnkTypOpt.Primary | ItemFileLnkTypOpt.StandardComponent | ItemFileLnkTypOpt.PrimarySub | ItemFileLnkTypOpt.SecondarySub | ItemFileLnkTypOpt.Tertiary);
-            long primaryId = 0;
-            bool isPrimarySubComp = false;
-            //ArrayList secondaryList = new ArrayList();
-            ArrayList stdCompList = new ArrayList();
-            ArrayList secSudCompList = new ArrayList();
-            ArrayList tertiaryList = new ArrayList();
-
-            foreach (ItemFileAssoc assoc in assocs)
-            {
-                if (assoc.Typ == ItemFileLnkTyp.Primary)
-                    primaryId = assoc.CldFileId;
-                if (assoc.Typ == ItemFileLnkTyp.PrimarySub)
-                    isPrimarySubComp = true;
-                //if (assoc.Typ == ItemFileLnkTyp.Secondary)
-                //    secondaryList.Add(assoc.CldFileId);
-                if (assoc.Typ == ItemFileLnkTyp.SecondarySub)
-                    secSudCompList.Add(assoc.CldFileId);
-                if (assoc.Typ == ItemFileLnkTyp.StandardComponent)
-                    stdCompList.Add(assoc.CldFileId);
-                if (assoc.Typ == ItemFileLnkTyp.Tertiary)
-                    tertiaryList.Add(assoc.CldFileId);
-            }
-            //long[] secondary = (long[])secondaryList.ToArray(typeof(long));
-            long[] stdComp = (long[])stdCompList.ToArray(typeof(long));
-            long[] secSudComp = (long[])secSudCompList.ToArray(typeof(long));
-            long[] tertiary = (long[])tertiaryList.ToArray(typeof(long));
-            
+            //checking if attachment exists..
+            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Checking attachments.."));
             Attmt[] atts = ServiceManager.ItemService.GetAttachmentsByItemId(item.Id);
-        //Array.Resize(ref atts, atts.Count() + 1);
-        //atts[atts.Count() - 1] = newattachment;
+            foreach (Attmt att in atts)
+            {
+                //getting file object of attachment..
+                Autodesk.Connectivity.WebServices.File attmtfile = ServiceManager.DocumentService.GetFileById(att.FileId);
+                //checking filename..
+                if (attmtfile.Name == System.IO.Path.GetFileName(stepfilename))
+                {
+                    OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Step-file already attached"));
+                    return;
+                }
+            }
+            //no stepfile found as attachment
+            //looking for step file in vault...
+            OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Searching for step-file in vault.."));
+            PropDef[] filePropDefs = ServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE");
+            PropDef filenamePropDef = filePropDefs.Single(n => n.SysName == "Name");
+            SrchCond isFilename = new SrchCond()
+            {
+                PropDefId = filenamePropDef.Id,
+                PropTyp = PropertySearchType.SingleProperty,
+                SrchOper = 3,
+                SrchRule = SearchRuleType.Must,
+                SrchTxt = System.IO.Path.GetFileName(stepfilename)
+            };
+            string bookmark = string.Empty;
+            SrchStatus status = null;
+            Autodesk.Connectivity.WebServices.File[] results = ServiceManager.DocumentService.FindFilesBySearchConditions(new SrchCond[] { isFilename }, null, null, false, true, ref bookmark, out status);
 
-        //ServiceManager.ItemService.UpdateAndCommitItem(item, primaryId, isPrimarySubComp, null, stdComp, secSudComp, atts, null, tertiary, 2);
+            Autodesk.Connectivity.WebServices.File newfile;
+            
+            if (results == null)
+            {
+                //no stepfile in vault, downloading ipt and generating stepfile
+                OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Retreiving files.."));
+                
+                ByteArray buffer;
+                String fullpath;
+                FilePathArray [] fparray = ServiceManager.DocumentService.GetLatestAssociatedFilePathsByMasterIds(new long [] {iptiamfile.MasterId}, FileAssociationTypeEnum.None, false, FileAssociationTypeEnum.Dependency, true, false, true, false);
+                foreach (FilePath fp in fparray[0].FilePaths)
+                {
+                    fullpath = fp.Path.Replace("$", "C:/Vault WorkingFolder");
+                    ServiceManager.DocumentService.DownloadFile(fp.File.Id, true, out buffer);
+                    if (System.IO.File.Exists(fullpath) == true)
+                    {
+                        System.IO.File.SetAttributes(fullpath, FileAttributes.Normal);
+                    }
+                    System.IO.File.WriteAllBytes(fullpath, buffer.Bytes);
+                    System.IO.File.SetAttributes(fullpath, FileAttributes.ReadOnly);
+                }
+                
+                OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Opening file.."));
+                Inventor.ApprenticeServerComponent appserver;
+                appserver = new ApprenticeServerComponent();
+                Inventor.ApprenticeServerDocument appdocu;
+                appdocu = appserver.Open(iptiampath);
+
+                OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Generating step-file.."));
+
+                if (System.IO.File.Exists(stepfilename) == true)
+                {
+                    System.IO.File.SetAttributes(stepfilename, FileAttributes.Normal);
+                }
+
+                FileSaveAs sa;
+                sa = appserver.FileSaveAs;
+                sa.AddFileToSave(appdocu, stepfilename);
+                sa.ExecuteSaveCopyAs();
+
+                System.IO.File.SetAttributes(stepfilename, FileAttributes.ReadOnly);
+
+                OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Closing part-file.."));
+                appdocu.Close();
+                //OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Deleting part-file.."));
+                //System.IO.File.Delete(iptfilename);
+
+                OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Adding step-file to vault.."));
+                // add file to vault + attach
+
+                Folder[] folders = ServiceManager.DocumentService.FindFoldersByPaths(new string[] { "$/Export Files" });
+                long folderid = folders[0].Id;
+                System.IO.FileInfo info = new FileInfo(stepfilename);
+                buffer = new ByteArray();
+                buffer.Bytes = System.IO.File.ReadAllBytes(stepfilename);
+
+                //OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "addfile"));
+                try
+                {
+                    newfile = ServiceManager.DocumentService.AddFile(folderid, System.IO.Path.GetFileName(stepfilename), "Added by Martijns stepfileplugin", info.LastWriteTime, null, null, FileClassification.None, false, buffer);
+                }
+                catch (Exception ex)
+                {
+                    OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Failed"));
+                    MessageBox.Show("Error: " + ex.Message);
+                    return;
+                }
+                //1008 addfileexists
+                //1009 addfile failed
+            }
+            else
+            {
+                if (results.Count() > 1)
+                {
+                    OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Failed"));
+                    MessageBox.Show("Error: more then 1 file with the name " + System.IO.Path.GetFileName(stepfilename + " exist in vault!"));
+                    return;
+                }
+                newfile = results[0];
+            }
+            //OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "new attmt"));
+            
+            Attmt newattachment = new Attmt();
+            newattachment.FileId = newfile.Id;
+            newattachment.Pin = false;
+
+            //OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "new edititem"));
+            
+            Array.Resize(ref atts, atts.Count() + 1);
+            atts[atts.Count() - 1] = newattachment;
+
+            Item edititem = ServiceManager.ItemService.EditItem(item.RevId);
+
+            ServiceManager.ItemService.UpdateAndCommitItem(edititem, 0, false, null, null, null, atts, null, null, 2);
 
             OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Done"));
         }

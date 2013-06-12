@@ -31,6 +31,7 @@ namespace AddStepFile
                 DeployAsPulldownMenu = false,
                 Location = CommandSiteLocation.ItemContextMenu,
             };
+
             CommandItem AddStepFileCmd = new CommandItem(s_AddStepFileCommandId, "Add Step File ...")
             {
                 Description = "Adds STEP file to an item",
