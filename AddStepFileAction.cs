@@ -247,6 +247,13 @@ namespace AddStepFile
             
             if (results == null)
             {
+                //no stepfile in vault, user must add
+                OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, System.IO.Path.GetFileName(stepfilename) + " not found in vault"));
+                return;
+
+                
+
+                /*
                 //no stepfile in vault, downloading ipt and generating stepfile
                 OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Retreiving files.."));
                 
@@ -264,12 +271,37 @@ namespace AddStepFile
                     System.IO.File.WriteAllBytes(fullpath, buffer.Bytes);
                     System.IO.File.SetAttributes(fullpath, FileAttributes.ReadOnly);
                 }
-                
+
+                Inventor.Application m_inventorApp;
+                OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Looking for Inventor.."));
+                try //Try to get an active instance of Inventor
+                {
+                    try
+                    {
+                        m_inventorApp = System.Runtime.InteropServices.Marshal.GetActiveObject("Inventor.Application") as Inventor.Application;
+                    }
+                    catch
+                    {
+                        Type inventorAppType = System.Type.GetTypeFromProgID("Inventor.Application");
+
+                        m_inventorApp = System.Activator.CreateInstance(inventorAppType) as Inventor.Application;
+
+                        //Must be set visible explicitly
+                        m_inventorApp.Visible = true;
+                    }
+                }
+                catch
+                {
+                    OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "couldn't create Inventor instance"));
+                    return;
+                }
                 OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Opening file.."));
-                Inventor.ApprenticeServerComponent appserver;
-                appserver = new ApprenticeServerComponent();
-                Inventor.ApprenticeServerDocument appdocu;
-                appdocu = appserver.Open(iptiampath);
+                _Document iptdocu = m_inventorApp.Documents.Open(iptiampath, true);
+                
+                //Inventor.ApprenticeServerComponent appserver;
+                //appserver = new ApprenticeServerComponent();
+                //Inventor.ApprenticeServerDocument appdocu;
+                //appdocu = appserver.Open(iptiampath);
 
                 OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Generating step-file.."));
 
@@ -278,15 +310,19 @@ namespace AddStepFile
                     System.IO.File.SetAttributes(stepfilename, FileAttributes.Normal);
                 }
 
-                FileSaveAs sa;
-                sa = appserver.FileSaveAs;
-                sa.AddFileToSave(appdocu, stepfilename);
-                sa.ExecuteSaveCopyAs();
+                iptdocu.SaveAs(stepfilename, true);
+                
+                //FileSaveAs sa;
+                //sa = appserver.FileSaveAs;
+                //sa.AddFileToSave(appdocu, stepfilename);
+                //sa.ExecuteSaveCopyAs();
 
                 System.IO.File.SetAttributes(stepfilename, FileAttributes.ReadOnly);
 
                 OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Closing part-file.."));
-                appdocu.Close();
+                iptdocu.Close(true);
+                //appdocu.Close();
+
                 //OnItemStatusUpdate(new ItemStatusUpdateEventArgs(item, "Deleting part-file.."));
                 //System.IO.File.Delete(iptfilename);
 
@@ -312,6 +348,7 @@ namespace AddStepFile
                 }
                 //1008 addfileexists
                 //1009 addfile failed
+                 */
             }
             else
             {
